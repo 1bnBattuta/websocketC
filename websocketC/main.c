@@ -9,6 +9,7 @@
 
 #include <arpa/inet.h> // IP addresses ustilities
 #include <netinet/in.h> // Internet addresses family and structures
+#include "sha1/sha1.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h> // socket functions and strcutures
@@ -61,6 +62,27 @@ const char *handshake_error_response(ws_handshake_result result) {
         case WS_HANDSHAKE_NOT_UPGRADE:   return HTTP_426;
         default:                         return HTTP_400;
     }
+}
+
+
+/**
+ * @brief Computes the Sec-WebSocket-Accept value from a Sec-WebSocket-Key
+ * @param[in]  client_key  The key extracted from the handshake request
+ * @param[out] output      Buffer for the base64-encoded accept key, must be at least 29 bytes
+ */
+void websocket_accept_key(const char *client_key, char *output) {
+    static const char *GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+    // concatenate key + GUID
+    char combined[64 + 36 + 1];
+    snprintf(combined, sizeof(combined), "%s%s", client_key, GUID);
+
+    // SHA-1 hash
+    unsigned char digest[20];
+    sha1((unsigned char *)combined, strlen(combined), digest);
+
+    // base64 encode
+    base64_encode(digest, 20, output);
 }
 
 /**
@@ -217,8 +239,9 @@ int main() {
         }
 
         // Sending handshake response back
-        //char *accept_key = base64_encode(SHA1(Sec-WebSocket-Key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
-        char *response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
+        char accept_key[29];
+        websocket_accept_key(key, accept_key);
+        free(key);
 
         send_handshake_error:
             const char *response = handshake_error_response(result);
