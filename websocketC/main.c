@@ -94,7 +94,7 @@ void websocket_accept_key(const char *client_key, char *output) {
  * @param[in] buffer the buffer containing the raw http request. MUST BE NULL TERMINATED
  * @return 0 for a valid request, otherwise see the enum of results
  */
-int client_handshake_verify(const char* buffer) {
+int client_handshake_verify(char* buffer) {
     // Checking for GET requests only
     if (strncmp(buffer, "GET", 3) != 0) return 1;
 
@@ -147,7 +147,7 @@ int client_handshake_verify(const char* buffer) {
 /**
  * @brief extract the websocket key from the handshake request
  */
-char *websocket_key_extract(const char *buffer) {
+char *websocket_key_extract(char *buffer) {
     // Assumes buffer has been validated by client_handshake_verify()
     // and is null-terminated
 
@@ -217,7 +217,7 @@ int main() {
         }
 
         // Buffer to get the handshake http request from the client
-        char *buffer[BUFFER_SIZE + 1] = {0};
+        char buffer[BUFFER_SIZE + 1] = {0};
         int bytes_received;
         if ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) < 0) {
             perror("Failed to receive handshake request from client");
@@ -243,9 +243,23 @@ int main() {
         websocket_accept_key(key, accept_key);
         free(key);
 
+        char response[256];
+        snprintf(response, sizeof(response), 
+            "HTTP/1.1 101 Switching Protocols\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Accept: %s\r\n\r\n",
+            accept_key
+        );
+
+        if (send(client_fd, response, strlen(response), 0) < 0) {
+            perror("Failed to send response");
+            goto close_socket;
+        }
+
         send_handshake_error:
-            const char *response = handshake_error_response(result);
-            if (send(client_fd, response, strlen(response), 0) < 0) {
+            const char *error_response = handshake_error_response(result);
+            if (send(client_fd, error_response, strlen(error_response), 0) < 0) {
                 perror("Failed to send response");
             }
 

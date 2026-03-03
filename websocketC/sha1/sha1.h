@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define ROTL(x, n) (((x) << (n)) | ((x) >> (32 - (n))))
 
