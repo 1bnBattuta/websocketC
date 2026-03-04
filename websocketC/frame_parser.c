@@ -1,39 +1,47 @@
 #include "frame_parser.h"
 
-static ws_parse_result frame_parse(const uint8_t *raw_data, size_t len, ws_frame *frame) {
+/**
+ * @param[in] buffer the buffer containing raw data from request
+ * @param[in] len the size of request buffer
+ * @param[out] frame the frame structure containing parsed request data
+ * Note: this is a ZERO-COPY approach, the payload stored in the frame is pointing to
+ *  an address in the original buffer, so the original buffer MUST LIVE.
+ *  Also payload must be unmasked before reading (in place or into a separate buffer)
+ */
+static ws_parse_result frame_parse(const uint8_t *buffer, size_t len, ws_frame *frame) {
     size_t read = 0;
     if (len < 6) { return WS_PARSE_INVALID_LEN; }
 
-    frame->fin_rsv_opcode = raw_data[read++];
-    frame->mask_paylen    = raw_data[read++];
+    frame->fin_rsv_opcode = buffer[read++];
+    frame->mask_paylen    = buffer[read++];
 
-    uint8_t  payload_len = frame->mask_paylen & 0x7F;
-    uint64_t actual_len  = payload_len;
+    uint8_t payload_len_indicator = frame->mask_paylen & 0x7F;
+    uint64_t actual_len = payload_len_indicator;
 
-    switch (payload_len) {
+    switch (payload_len_indicator) {
         case 127:
             if (len < read + 8) { return WS_PARSE_INVALID_LEN; }
-            memcpy(&frame->ext_payload_len.len64, raw_data + read, 8);
-            frame->ext_payload_len.len64 = be64toh(frame->ext_payload_len.len64);
-            actual_len = frame->ext_payload_len.len64;
+            memcpy(&actual_len, buffer + read, 8);
+            actual_len = be64toh(actual_len);
             read += 8;
             break;
         case 126:
             if (len < read + 2) { return WS_PARSE_INVALID_LEN; }
-            memcpy(&frame->ext_payload_len.len16, raw_data + read, 2);
-            frame->ext_payload_len.len16 = ntohs(frame->ext_payload_len.len16);
-            actual_len = frame->ext_payload_len.len16;
+            uint16_t len16;
+            memcpy(&len16, buffer + read, 2);
+            actual_len = ntohs(len16);
             read += 2;
             break;
     }
 
     if (len < read + 4) { return WS_PARSE_INVALID_LEN; }
-    memcpy(&frame->masking_key, raw_data + read, 4);
+    memcpy(frame->masking_key, buffer + read, 4);
     read += 4;
 
-    if (len != read + actual_len) { return WS_PARSE_INVALID_LEN; }
+    if (len < read + actual_len) { return WS_PARSE_INCOMPLETE; }
 
-    frame->payload = raw_data + read;
+    frame->payload_len = actual_len;
+    frame->payload     = buffer + read;
 
     return WS_PARSE_OK;
 }
@@ -42,7 +50,7 @@ static ws_parse_result frame_validate(const ws_frame *frame) {
     // TODO: Add support for extensions
     // For now, no extension will be supported: RSV fields must be 0
     uint8_t rsv = frame->fin_rsv_opcode & 0x70;
-    if (rsv != 0) {return WS_PARSE_EXTENTION_ERROR; }
+    if (rsv != 0) { return WS_PARSE_EXTENTION_ERROR; }
 
     uint8_t opcode = frame->fin_rsv_opcode & 0x0F;
     if ((opcode > 0x2 && opcode < 0x8) || opcode > 0xA) {
@@ -50,7 +58,7 @@ static ws_parse_result frame_validate(const ws_frame *frame) {
     }
 
     uint8_t mask = frame->mask_paylen & 0x80;
-    if (mask != 0x80) {return WS_PARSE_UNMASKED_DATA; }
+    if (mask != 0x80) { return WS_PARSE_UNMASKED_DATA; }
 
     return WS_PARSE_OK;
 }
