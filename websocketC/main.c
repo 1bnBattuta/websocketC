@@ -7,20 +7,22 @@
  *           https://www.rfc-editor.org/rfc/rfc6455
 */
 
-#include <arpa/inet.h> // IP addresses ustilities
+#include <arpa/inet.h>  // IP addresses ustilities
 #include <netinet/in.h> // Internet addresses family and structures
-#include "sha1/sha1.h"
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h> // socket functions and strcutures
-#include <unistd.h> // POSIX operating system API, includes socket closing
+#include <unistd.h>     // POSIX operating system API, includes socket closing
 
+#include "sha1/sha1.h"
+#include "frame_parser.h"
 
 #define HTTP_400 "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 #define HTTP_426 "HTTP/1.1 426 Upgrade Required\r\nUpgrade: websocket\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 #define HTTP_505 "HTTP/1.1 505 HTTP Version Not Supported\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 
-#define BUFFER_SIZE 1024
+#define ACCEPT_KEY_SIZE 29  // Size of accpet key buffer
+#define BUFFER_SIZE 1024    // Generic buffer size
 #define PORT 443 
 // connection over HTTPS to avoid complications with firewalls and/or proxies
 
@@ -43,7 +45,6 @@ void base64_encode(const unsigned char *input, int length, char *output) {
     }
     output[j] = '\0'; // Null-terminate the output string
 }
-
 
 
 typedef enum {
@@ -94,7 +95,7 @@ void websocket_accept_key(const char *client_key, char *output) {
  * @param[in] buffer the buffer containing the raw http request. MUST BE NULL TERMINATED
  * @return 0 for a valid request, otherwise see the enum of results
  */
-int client_handshake_verify(char* buffer) {
+ws_handshake_result client_handshake_verify(char* buffer) {
     // Checking for GET requests only
     if (strncmp(buffer, "GET", 3) != 0) return 1;
 
@@ -159,7 +160,7 @@ char *websocket_key_extract(char *buffer) {
 
     char *end = strstr(key, "\r\n");
     if (end == NULL) {
-        perror("Malformed key");
+        fprintf(stderr, "Malformed key");
         return NULL;
     }
 
@@ -191,6 +192,12 @@ int main() {
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(PORT);
 
+    int opt = 1;
+    if (setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("Failed to set server socket option: SO_REUSEADDR");
+        return -1;
+    } 
+
     if ((bind(server_socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr))) < 0) {
         perror("Failed to bind socket to server address");
         return -1;
@@ -208,7 +215,7 @@ int main() {
 
         // Client socket and address
         struct sockaddr client_addr;
-        socklen_t len;
+        socklen_t len = sizeof(client_addr);
         int client_fd;
 
         if ((client_fd = accept(server_socket_fd, &client_addr, &len)) < 0) {
@@ -227,14 +234,14 @@ int main() {
         buffer[bytes_received] = '\0';
         ws_handshake_result result = client_handshake_verify(buffer);
         if (result != WS_HANDSHAKE_OK) {
-            perror("HTTP handshake request is not valid");
+            fprintf(stderr, "HTTP handshake request is not valid");
             goto send_handshake_error;
         }
 
         // Dynamically allocated key
         char *key = websocket_key_extract(buffer);
         if (key == NULL) {
-            perror("Failed to extract key from handshake request");
+            fprintf(stderr, "Failed to extract key from handshake request");
             goto send_handshake_error;
         }
 
@@ -256,6 +263,8 @@ int main() {
             perror("Failed to send response");
             goto close_socket;
         }
+
+        
 
         send_handshake_error:
             const char *error_response = handshake_error_response(result);
