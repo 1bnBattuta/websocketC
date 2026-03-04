@@ -1,0 +1,62 @@
+#include "frame_parser.h"
+
+static ws_parse_result frame_parse(const uint8_t *raw_data, size_t len, ws_frame *frame) {
+    size_t read = 0;
+    if (len < 6) { return WS_PARSE_INVALID_LEN; }
+
+    frame->fin_rsv_opcode = raw_data[read++];
+    frame->mask_paylen    = raw_data[read++];
+
+    uint8_t  payload_len = frame->mask_paylen & 0x7F;
+    uint64_t actual_len  = payload_len;
+
+    switch (payload_len) {
+        case 127:
+            if (len < read + 8) { return WS_PARSE_INVALID_LEN; }
+            memcpy(&frame->ext_payload_len.len64, raw_data + read, 8);
+            frame->ext_payload_len.len64 = be64toh(frame->ext_payload_len.len64);
+            actual_len = frame->ext_payload_len.len64;
+            read += 8;
+            break;
+        case 126:
+            if (len < read + 2) { return WS_PARSE_INVALID_LEN; }
+            memcpy(&frame->ext_payload_len.len16, raw_data + read, 2);
+            frame->ext_payload_len.len16 = ntohs(frame->ext_payload_len.len16);
+            actual_len = frame->ext_payload_len.len16;
+            read += 2;
+            break;
+    }
+
+    if (len < read + 4) { return WS_PARSE_INVALID_LEN; }
+    memcpy(&frame->masking_key, raw_data + read, 4);
+    read += 4;
+
+    if (len != read + actual_len) { return WS_PARSE_INVALID_LEN; }
+
+    frame->payload = raw_data + read;
+
+    return WS_PARSE_OK;
+}
+
+static ws_parse_result frame_validate(const ws_frame *frame) {
+    // TODO: Add support for extensions
+    // For now, no extension will be supported: RSV fields must be 0
+    uint8_t rsv = frame->fin_rsv_opcode & 0x70;
+    if (rsv != 0) {return WS_PARSE_EXTENTION_ERROR; }
+
+    uint8_t opcode = frame->fin_rsv_opcode & 0x0F;
+    if ((opcode > 0x2 && opcode < 0x8) || opcode > 0xA) {
+        return WS_PARSE_INVALID_OPCODE;
+    }
+
+    uint8_t mask = frame->mask_paylen & 0x80;
+    if (mask != 0x80) {return WS_PARSE_UNMASKED_DATA; }
+
+    return WS_PARSE_OK;
+}
+
+ws_parse_result ws_frame_parse(const uint8_t *buf, size_t len, ws_frame *frame) {
+    ws_parse_result r = frame_parse(buf, len, frame);
+    if (r != WS_PARSE_OK) return r;
+    return frame_validate(frame);
+}
