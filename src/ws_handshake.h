@@ -1,8 +1,11 @@
+#ifndef WS_HANDSHAKE_H
+#define WS_HANDSHAKE_H
+
 #include <stdio.h>
 #include <string.h>
 
-#include "base64/base64.h"
-#include "sha1/sha1.h"
+#include "utils/base64.h"
+#include "utils/sha1.h"
 
 #define HTTP_400 "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 #define HTTP_426 "HTTP/1.1 426 Upgrade Required\r\nUpgrade: websocket\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
@@ -22,3 +25,5 @@ const char *handshake_error_response(ws_handshake_result result);
 void ws_accept_key(const char *client_key, char *output);
 ws_handshake_result client_handshake_verify(char* buffer);
 char *websocket_key_extract(char *buffer);
+
+#endif

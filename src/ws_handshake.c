@@ -1,4 +1,4 @@
-#include "handshake.h"
+#include "ws_handshake.h"
 
 const char *handshake_error_response(ws_handshake_result result) {
     switch (result) {
