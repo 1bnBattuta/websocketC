@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "utils/base64.h"
-#include "utils/sha1.h"
+#include "utils/ws_sha1.h"
 
 #define HTTP_400 "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
 #define HTTP_426 "HTTP/1.1 426 Upgrade Required\r\nUpgrade: websocket\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

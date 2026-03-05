@@ -16,7 +16,7 @@ build:
 	mkdir -p build
 
 tests: $(wildcard tests/*.c)
-	$(CC) $(CFLAGS) -o build/tests $^ src/ws_handshake.c src/ws_frame.c src/ws_crypto.c -lpthread
+	$(CC) $(CFLAGS) -o build/tests $^ src/ws_handshake.c src/ws_frame.c -lpthread
 	./build/tests
 
 clean:

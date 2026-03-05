@@ -1,4 +1,4 @@
-#include "sha1.h"
+#include "ws_sha1.h"
 
 /**
  * @brief Computes the SHA-1 digest of the input buffer
