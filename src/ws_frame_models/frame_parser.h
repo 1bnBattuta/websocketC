@@ -1,3 +1,6 @@
+#ifndef FRAME_PARSER_H
+#define FRAME_PARSER_H
+
 #include <arpa/inet.h> // for ntohs
 #include <endian.h> // For be64toh
 #include <stdint.h>
@@ -33,3 +36,5 @@ typedef struct {
 //ws_parse_result frame_validate(const ws_frame *frame);
 
 ws_parse_result ws_frame_parse(const uint8_t *buf, size_t len, ws_frame *frame);
+
+#endif
