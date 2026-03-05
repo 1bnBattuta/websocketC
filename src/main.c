@@ -14,8 +14,8 @@
 #include <sys/socket.h> // socket functions and strcutures
 #include <unistd.h>     // POSIX operating system API, includes socket closing
 
-#include "frame_parser.h"
-#include "handshake.h"
+#include "ws_frame.h"
+#include "ws_handshake.h"
 
 #define ACCEPT_KEY_SIZE 29  // Size of accpet key buffer
 #define BUFFER_SIZE 1024    // Generic buffer size
@@ -57,6 +57,42 @@ int server_initiate(struct sockaddr_in *server_addr) {
     return server_socket_fd;
 }
 
+typedef struct {
+    uint8_t  data[BUFFER_SIZE];
+    size_t   len;           // bytes currently in buffer
+} recv_buffer;
+
+// in ws_session, instead of parsing directly from recv:
+void ws_session(int client_fd) {
+    recv_buffer rb = {0};
+
+    while (1) {
+        ssize_t bytes = recv(client_fd,
+                             rb.data + rb.len,
+                             BUFFER_SIZE - rb.len, 0);
+        if (bytes <= 0) break;
+        rb.len += bytes;
+
+        ws_frame frame;
+        ws_parse_result r = ws_frame_parse(rb.data, rb.len, &frame);
+
+        if (r == WS_PARSE_INCOMPLETE) continue; // wait for more data
+
+        if (r != WS_PARSE_OK) {
+            ws_send_close(client_fd, 1002, "Protocol error");
+            break;
+        }
+
+        size_t frame_total = (frame.payload - rb.data) + frame.payload_len;
+
+        if (ws_frame_dispatch(client_fd, &frame) != 0) break;
+
+        // shift remaining bytes to front of buffer
+        rb.len -= frame_total;
+        memmove(rb.data, rb.data + frame_total, rb.len);
+    }
+}
+
 
 void handle_client(int client_fd) {
     char buffer[BUFFER_SIZE + 1] = {0};
@@ -94,7 +130,7 @@ void handle_client(int client_fd) {
         return;
     }
 
-    // ws_session(client_fd);
+    ws_session(client_fd);
 }
 
 
