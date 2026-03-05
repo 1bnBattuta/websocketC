@@ -22,7 +22,7 @@ void ws_accept_key(const char *client_key, char *output) {
 
     // SHA-1 hash
     unsigned char digest[20];
-    sha1((unsigned char *)combined, strlen(combined), digest);
+    ws_sha1((unsigned char *)combined, strlen(combined), digest);
 
     // base64 encode
     base64_encode(digest, 20, output);

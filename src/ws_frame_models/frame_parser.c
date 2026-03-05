@@ -1,4 +1,4 @@
-#include "frame_parser.h"
+#include "ws_frame_models/frame_parser.h"
 
 /**
  * @param[in] buffer the buffer containing raw data from request

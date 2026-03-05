@@ -1,4 +1,4 @@
-#include "frame_send.h"
+#include "ws_frame_models/frame_send.h"
 
 static int ws_send_frame(int fd, uint8_t opcode, const uint8_t *payload, size_t len) {
     uint8_t header[10];

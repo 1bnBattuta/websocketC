@@ -1,6 +1,8 @@
 #ifndef FRAME_DISPATCH_H
 #define FRAME_DISPATCH_H
 
+#include <stdio.h>
+
 #include "frame_parser.h"
 #include "frame_send.h"
 

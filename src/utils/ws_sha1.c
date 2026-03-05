@@ -1,4 +1,4 @@
-#include "ws_sha1.h"
+#include "utils/ws_sha1.h"
 
 /**
  * @brief Computes the SHA-1 digest of the input buffer
@@ -6,7 +6,7 @@
  * @param[in]  len    Length of input in bytes
  * @param[out] digest Output buffer, must be exactly 20 bytes
  */
-void sha1(const unsigned char *input, size_t len, unsigned char digest[20]) {
+void ws_sha1(const unsigned char *input, size_t len, unsigned char digest[20]) {
 
     // --- Stage 1: Initialize state ---
     uint32_t h0 = 0x67452301;

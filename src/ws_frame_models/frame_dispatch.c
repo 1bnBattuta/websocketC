@@ -1,4 +1,4 @@
-#include "frame_dispatch.h"
+#include "ws_frame_models/frame_dispatch.h"
 
 void ws_payload_unmask(ws_frame *frame) {
     uint8_t *payload = (uint8_t *) frame->payload;
@@ -8,6 +8,9 @@ void ws_payload_unmask(ws_frame *frame) {
 }
 
 /**
+ * @brief Dispatches a parsed, unmasked frame to the appropriate handler.
+ * @param[in] client_fd  Connected client socket file descriptor
+ * @param[in] frame      Parsed and unmasked WebSocket frame
  * @return 0 to continue session, -1 to terminate
  */
 int ws_frame_dispatch(int client_fd, ws_frame *frame) {
@@ -28,39 +31,41 @@ int ws_frame_dispatch(int client_fd, ws_frame *frame) {
 
 int ws_handle_text(int client_fd, ws_frame *frame) {
     ws_payload_unmask(frame);
-    // echo back for now — replace with your actual logic
-    ws_send_text(client_fd, frame->payload, frame->payload_len);
-    return 0;
+    printf("[text] %.*s\n", (int)frame->payload_len, frame->payload);
+    return ws_send_text(client_fd, frame->payload, frame->payload_len);
 }
 
 int ws_handle_binary(int client_fd, ws_frame *frame) {
     ws_payload_unmask(frame);
-    ws_send_binary(client_fd, frame->payload, frame->payload_len);
-    return 0;
+    printf("[binary] %zu bytes\n", frame->payload_len);
+    return ws_send_binary(client_fd, frame->payload, frame->payload_len);
 }
 
 int ws_handle_ping(int client_fd, ws_frame *frame) {
-    // must respond with pong carrying the same payload, per RFC 6455
     ws_payload_unmask(frame);
-    ws_send_pong(client_fd, frame->payload, frame->payload_len);
-    return 0;
+    printf("[ping]\n");
+    return ws_send_pong(client_fd, frame->payload, frame->payload_len);
 }
 
 int ws_handle_pong(int client_fd, ws_frame *frame) {
-    // nothing to do — pong is just an acknowledgement
-    (void)client_fd; (void)frame;
+    // pong is just an acknowledgement, nothing to do
+    (void)client_fd;
+    (void)frame;
+    printf("[pong]\n");
     return 0;
 }
 
 int ws_handle_close(int client_fd, ws_frame *frame) {
-    // echo the close frame back then terminate, per RFC 6455
     ws_payload_unmask(frame);
+    printf("[close]\n");
     ws_send_close(client_fd, 1000, NULL);
-    return -1;
+    return -1; // signal session end
 }
 
 int ws_handle_continuation(int client_fd, ws_frame *frame) {
     // TODO: fragmentation support
-    (void)client_fd; (void)frame;
+    (void)client_fd;
+    (void)frame;
+    fprintf(stderr, "[continuation] fragmented frames not yet supported\n");
     return -1;
 }
